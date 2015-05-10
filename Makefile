@@ -43,7 +43,7 @@ clean:
 	@$(RM) $(P) $(OBJECTS)
 
 test:
-	$(CC) $(LDFLAGS) -o test/test test/test.c $(SOURCES) $(LDLIBS)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o test/test test/test.c $(SOURCES) $(LDLIBS)
 	test/test
 
 .PHONY: all release fresh strip clean test

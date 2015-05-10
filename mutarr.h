@@ -77,13 +77,13 @@ void ma_setfree(ma_xdealloc routine);
  * @ma: typed pointer to the mutable array
  * @hint: count of elements to allocate memory for
  *
- * Return: When successful 1, or otherwise 0 if ma_grow() failed. Always returns
+ * Return: When successful 1, otherwise 0 if ma_grow() failed. Always returns
  *	1 if @hint is 0.
  *
  * Note!: Do not access elements that are not added to the array yet, only those
- *	whose position is below @ma->len. Also, when specifying indices for any
+ *	whose position is below @ma->len. Also, when specifying offsets for any
  *	mutarr function, negative indices select elements from the end of the
- *	array and if an index is beyond any bound, then it is truncated.
+ *	array and if an index is beyond any bound, it is truncated.
  */
 #define ma_init(ma, hint)                                \
 	((ma)->s.alloc = (ma)->s.len = (ma)->len = 0,    \
@@ -92,7 +92,7 @@ void ma_setfree(ma_xdealloc routine);
 	 (ma)->s.cmp = NULL,                             \
 	 (ma)->s.tostr = NULL,                           \
 	 (ma)->s.buf = (ma)->s.userp = (ma)->buf = NULL, \
-	 hint ? ma_grow((ma), (hint)) : 1)
+	 ma_grow((ma), (hint)))
 
 /**
  * ma_release() - release an array
@@ -101,10 +101,10 @@ void ma_setfree(ma_xdealloc routine);
  * All elements are deleted, the buffer is released and @ma is reinitialized
  * with ma_init().
  */
-#define ma_release(ma)                \
-	do {                          \
-		ma_freebuf(&(ma)->s); \
-		ma_init((ma), 0);     \
+#define ma_release(ma)                  \
+	do {                            \
+		ma_freebuf(&(ma)->s);   \
+		(void)ma_init((ma), 0); \
 	} while (0)
 
 /**
@@ -128,13 +128,13 @@ void ma_setfree(ma_xdealloc routine);
 /**
  * ma_detach() - detach an array's buffer
  * @ma: typed pointer to the mutable array
- * @ret: pointer that receives @ma's length, can be NULL
+ * @size: pointer that receives @ma's length, can be NULL
  *
- * Return: The array buffer of @ma. If @ma's has no allocated memory, then NULL
- *	is returned. You have to free() the buffer, when you no longer need it.
+ * Return: The array buffer of @ma. If @ma's has no allocated memory, NULL is
+ *	returned. You have to free() the buffer, when you no longer need it.
  */
-#define ma_detach(ma, ret)                                           \
-	((ma)->ptr = (ma_detach)(&(ma)->s, (ret)), (ma)->buf = NULL, \
+#define ma_detach(ma, size)                                           \
+	((ma)->ptr = (ma_detach)(&(ma)->s, (size)), (ma)->buf = NULL, \
 	 (ma)->len = 0, (ma)->ptr)
 
 /**
@@ -142,42 +142,42 @@ void ma_setfree(ma_xdealloc routine);
  * @ma: typed pointer to the mutable array
  * @callb: routine that creates new elements
  */
-#define ma_setctor(ma, callb) ((ma)->s.ctor = (callb), 0)
+#define ma_setctor(ma, callb) (void)((ma)->s.ctor = (callb))
 
 /**
  * ma_setdtor() - set a mutarr's deconstructor
  * @ma: typed pointer to the mutable array
  * @callb: routine that releases deleted elements
  */
-#define ma_setdtor(ma, callb) ((ma)->s.dtor = (callb), 0)
+#define ma_setdtor(ma, callb) (void)((ma)->s.dtor = (callb))
 
  /**
  * ma_setuserp() - set a mutarr's user-defined value
  * @ma: typed pointer to the mutable array
  * @ptr: value to set
  */
-#define ma_setuserp(ma, ptr) ((ma)->s.userp = (ptr), 0)
+#define ma_setuserp(ma, ptr) (void)((ma)->s.userp = (ptr))
 
 /**
  * ma_setdefval() - set a mutarr's default value
  * @ma: typed pointer to the mutable array
- * @...: value that is used for new elements if @ma->ctor is NULL
+ * @...: value that is used for new elements if @ma->ctor() is NULL
  */
-#define ma_setdefval(ma, ...) ((ma)->val = (__VA_ARGS__), 0)
+#define ma_setdefval(ma, ...) (void)((ma)->val = (__VA_ARGS__))
 
 /**
  * ma_setcmp() - set a mutarr's compare routine
  * @ma: typed pointer to the mutable array
  * @callb: like the fourth parameter of qsort()
  */
-#define ma_setcmp(ma, callb) ((ma)->s.cmp = (callb), 0)
+#define ma_setcmp(ma, callb) (void)((ma)->s.cmp = (callb))
 
 /**
  * ma_settostr() - set a mutarr's tostring routine
  * @ma: typed pointer to the mutable array
  * @callb: routine that releases deleted elements
  */
-#define ma_settostr(ma, callb) ((ma)->s.tostr = (callb), 0)
+#define ma_settostr(ma, callb) (void)((ma)->s.tostr = (callb))
 
 /**
  * ma_setcbs() - set a mutarr's callbacks
@@ -186,6 +186,8 @@ void ma_setfree(ma_xdealloc routine);
  * @dtorcb: destructor
  * @cmpcb: compare routine
  * @tostrcb: stringify routine
+ *
+ * NULL is valid for unneeded callbacks.
  */
 #define ma_setcbs(ma, ctorcb, dtorcb, cmpcb, tostrcb) \
 	do {                                          \
@@ -200,7 +202,7 @@ void ma_setfree(ma_xdealloc routine);
  * @a: typed pointer to a mutable array
  * @b: typed pointer to another mutable array
  *
- * Return: When successful 1, or otherwise 0 when their type sizes mismatch. On
+ * Return: When successful 1, otherwise 0 if their type sizes mismatch. On
  *	failure nothing is swapped.
  */
 #define ma_swap(a, b)                                   \
@@ -213,7 +215,7 @@ void ma_setfree(ma_xdealloc routine);
  * @a: typed pointer to a mutable array
  * @b: typed pointer to another mutable array
  *
- * Return: When successful 1, or otherwise 0 when their type sizes mismatch or
+ * Return: When successful 1, otherwise 0 if their type sizes mismatch or
  *	realloc() failed. On failure nothing is swapped.
  */
 #define ma_fullswap(a, b)                                                  \
@@ -236,7 +238,7 @@ void ma_setfree(ma_xdealloc routine);
  *
  * Ensure that @ma can hold at least @extra more elements.
  *
- * Return: When successful 1, or otherwise 0 if realloc() failed.
+ * Return: When successful 1, otherwise 0 if realloc() failed.
  */
 #define ma_grow(ma, extra) \
 	((ma_grow)(&(ma)->s, extra) ? ((ma)->buf = (ma)->s.buf, 1) : 0)
@@ -245,7 +247,7 @@ void ma_setfree(ma_xdealloc routine);
  * ma_shrinktofit() - remove unused allocated memory
  * @ma: typed pointer to the mutable array
  *
- * Return: When successful 1, or otherwise 0 if realloc() failed.
+ * Return: When successful 1, otherwise 0 if realloc() failed.
  */
 #define ma_shrinktofit(ma) \
 	((ma_shrinktofit)(&(ma)->s) ? ((ma)->buf = (ma)->s.buf, 1) : 0)
@@ -263,7 +265,7 @@ void ma_setfree(ma_xdealloc routine);
  * @ma: typed pointer to the mutable array
  * @offset: position where to insert
  *
- * Return: When successful a pointer to the new element, or otherwise NULL if
+ * Return: When successful a pointer to the new element, otherwise NULL if
  *	ma_grow() failed.
  */
 #define ma_insertp(ma, offset) ma_insertmanyp((ma), (offset), 1)
@@ -274,8 +276,8 @@ void ma_setfree(ma_xdealloc routine);
  * @offset: position where to insert
  * @nlen: number of new elements
  *
- * Return: When successful a pointer to the first new element, or otherwise NULL
- *	if @nlen is 0 or ma_grow() failed.
+ * Return: When successful a pointer to the first new element, otherwise NULL if
+ *	@nlen is 0 or ma_grow() failed.
  */
 #define ma_insertmanyp(ma, offset, nlen)                              \
 	(((ma)->ptr = (ma_insertmanyp)(&(ma)->s, (offset), (nlen))) ? \
@@ -285,7 +287,7 @@ void ma_setfree(ma_xdealloc routine);
  * ma_pushp() - append a new element
  * @ma: typed pointer to the mutable array
  *
- * Return: When successful a reference to the new element, or otherwise NULL if
+ * Return: When successful a reference to the new element, otherwise NULL if
  *	ma_grow() failed.
  */
 #define ma_pushp(ma)                                                        \
@@ -298,10 +300,10 @@ void ma_setfree(ma_xdealloc routine);
  * @ma: typed pointer to the mutable array
  * @nlen: new number of elements @ma holds
  *
- * If @nlen is above @ma's current length, then new elements are added, either
- * by calling @ma->ctor() on them or by using @ma's default value. Respectively,
- * if that's not the case, then @ma->dtor() is called on all elements above the
- * new length. However, in either case the array is not reallocated and @nlen is
+ * If @nlen is above @ma's current length, new elements are added, either by
+ * calling @ma->ctor() on them or by using @ma's default value. Respectively, if
+ * that's not the case, @ma->dtor() is called on all elements above the new
+ * length. However, in either case the array is not reallocated and @nlen is
  * truncated to not exceed the allocation max.
  */
 #define ma_setlen(ma, nlen)                                         \
@@ -353,7 +355,7 @@ void ma_setfree(ma_xdealloc routine);
  * @dlen: number of new elements to insert
  *
  * Return: When successful a pointer to the element following the last deleted
- *	element and to the first new element respectively, or otherwise NULL if
+ *	element and to the first new element respectively, otherwise NULL if
  *	@dlen is above 0 and ma_grow() failed.
  */
 #define ma_splice(ma, offset, rlen, data, dlen)                       \
@@ -367,7 +369,9 @@ void ma_setfree(ma_xdealloc routine);
  * @offset: position where to insert
  * @...: value to insert
  *
- * Return: When successful 1, or otherwise 0 if ma_grow() failed.
+ * Return: When successful 1, otherwise 0 if ma_grow() failed.
+ *
+ * Note!: @... is like in ma_push().
  */
 #define ma_insert(ma, offset, ...) \
 	((ma_insertp((ma), (offset))) ? (*(ma)->ptr = (__VA_ARGS__), 1) : 0)
@@ -377,7 +381,7 @@ void ma_setfree(ma_xdealloc routine);
  * @ma: typed pointer to the sorted mutable array
  * @data: pointer to the data to insert
  *
- * Return: When successful 1, or otherwise 0 if @ma->cmp is NULL or ma_grow()
+ * Return: When successful 1, otherwise 0 if @ma->cmp() is NULL or ma_grow()
  *	failed.
  */
 #define ma_insertsorted(ma, data)              \
@@ -391,7 +395,7 @@ void ma_setfree(ma_xdealloc routine);
  * @data: pointer to the elements
  * @dlen: number of elements to insert
  *
- * Return: When successful pointer to the first element inserted, or otherwise
+ * Return: When successful pointer to the first element inserted, otherwise
  *	NULL if ma_grow() failed.
  */
 #define ma_insertmany(ma, offset, data, dlen) \
@@ -421,7 +425,7 @@ void ma_setfree(ma_xdealloc routine);
  * @ma: typed pointer to the mutable array
  * @...: value to push
  *
- * Return: When successful 1, or otherwise 0 if ma_grow() failed.
+ * Return: When successful 1, otherwise 0 if ma_grow() failed.
  *
  * Note!: @... is only a single value, it's denoted as varargs in order to cope
  *	with struct-literals, additionally, it is not evaluated if ma_push()
@@ -439,8 +443,8 @@ void ma_setfree(ma_xdealloc routine);
  * @data: pointer to the elements
  * @dlen: number of elements to insert
  *
- * Return: When successful pointer to the first element inserted, or otherwise
- *	NULL if ma_grow() failed.
+ * Return: When successful pointer to the first element inserted, otherwise NULL
+ *	if ma_grow() failed.
  */
 #define ma_pushmany(ma, data, dlen) \
 	ma_splice((ma), (ma)->s.len, 0, (data), (dlen))
@@ -450,7 +454,7 @@ void ma_setfree(ma_xdealloc routine);
  * @ma: typed pointer to the mutable array
  * @...: value to unshift
  *
- * Return: When successful 1, or otherwise 0 if ma_grow() failed.
+ * Return: When successful 1, otherwise 0 if ma_grow() failed.
  *
  * Note!: @... is like in ma_push().
  */
@@ -462,8 +466,8 @@ void ma_setfree(ma_xdealloc routine);
  * @data: pointer to the elements
  * @dlen: number of elements to unshift
  *
- * Return: When successful pointer to @ma's new first element, or otherwise NULL
- *	if ma_grow() failed.
+ * Return: When successful pointer to @ma's new first element, otherwise NULL if
+ *	ma_grow() failed.
  */
 #define ma_unshiftmany(ma, data, dlen) \
 	ma_splice((ma), 0, 0, (data), (dlen))
@@ -473,9 +477,9 @@ void ma_setfree(ma_xdealloc routine);
  * @ma: typed pointer to the mutable array
  * @ret: pointer that receives the popped element's value, can be NULL
  *
- * If @ret is NULL, then @ma->dtor() is called for the element to be popped.
+ * If @ret is NULL, @ma->dtor() is called for the element to be popped.
  *
- * Return: When successful 1, or otherwise 0 if there were no elements to pop.
+ * Return: When successful 1, otherwise 0 if there were no elements to pop.
  */
 #define ma_pop(ma, ret)                                                      \
 	((ma)->s.len ?                                                       \
@@ -491,9 +495,9 @@ void ma_setfree(ma_xdealloc routine);
  * @ma: typed pointer to the mutable array
  * @ret: pointer that receives the shifted element's value, can be NULL
  *
- * If @ret is NULL, then @ma->dtor() is called for the element to be shifted.
+ * If @ret is NULL, @ma->dtor() is called for the element to be shifted.
  *
- * Return: When successful 1, or otherwise 0 if there were no elements to shift.
+ * Return: When successful 1, otherwise 0 if there were no elements to shift.
  */
 #define ma_shift(ma, ret)                                                    \
 	((ma)->s.len ?                                                       \
@@ -517,7 +521,7 @@ void ma_setfree(ma_xdealloc routine);
  * Spawn a new element at @offset by either calling @ma->ctor() on it or by
  * setting it to @ma's default value.
  *
- * Return: When successful 1, or otherwise 0 if ma_grow() failed.
+ * Return: When successful 1, otherwise 0 if ma_grow() failed.
  */
 #define ma_spawn(ma, offset)                                      \
 	(ma_insertp((ma), (offset)) ?                             \
@@ -532,7 +536,7 @@ void ma_setfree(ma_xdealloc routine);
  *
  * Delete the element at @offset without calling @ma->dtor().
  *
- * Return: When successful 1, or otherwise 0 if there was no element to extract.
+ * Return: When successful 1, otherwise 0 if there was no element to extract.
  */
 #define ma_extract(ma, offset, ret)                                           \
 	((ma)->s.len ?                                                        \
@@ -551,9 +555,9 @@ void ma_setfree(ma_xdealloc routine);
  *
  * @callb is called with a pointer to the new element that receives the copy and
  * a pointer to the element in @data that is to be copied. It should return 1 if
- * it successfully copied an element or otherwise 0 to skip it.
+ * it successfully copied an element otherwise 0 to skip it.
  *
- * Return: Number of elements copied, or otherwise -1 if ma_grow() failed.
+ * Return: Number of elements copied, otherwise -1 if ma_grow() failed.
  */
 #define ma_copy(ma, offset, data, dlen, callb) \
 	(ma_copy)(&(ma)->s, (offset), (data), (dlen), (callb))
@@ -579,12 +583,12 @@ void ma_setfree(ma_xdealloc routine);
 #define ma_rindex(ma, start, data) (ma_index)(&(ma)->s, (start), (data))
 
 /**
- * ma_search() - search binarily in a sorted array
+ * ma_search() - use binary search on a sorted array
  * @ma: typed pointer to the sorted mutable array
  * @start: position to start searching from
  * @data: pointer to the data to search for
  *
- * Return: Index of the item, or -1 if not found or @ma->cmp is NULL.
+ * Return: Index of the item, or -1 if not found or @ma->cmp() is NULL.
  */
 #define ma_search(ma, start, data) (ma_search)(&(ma)->s, (start), (data))
 
@@ -592,7 +596,7 @@ void ma_setfree(ma_xdealloc routine);
  * ma_sort() - sort all elements
  * @ma: typed pointer to the mutable array
  *
- * Return: When successful 1, or otherwise 0 if @ma->len is 0 or @ma->cmp is
+ * Return: When successful 1, otherwise 0 if @ma->len is 0 or @ma->cmp() is
  *	NULL.
  */
 #define ma_sort(ma)                     \
@@ -605,7 +609,7 @@ void ma_setfree(ma_xdealloc routine);
  * @a: position of the first element
  * @b: position of the second element
  *
- * Return: When successful 1, or otherwise 0 if realloc() failed.
+ * Return: When successful 1, otherwise 0 if realloc() failed.
  */
 #define ma_xchg(ma, a, b) (ma_xchg)(&(ma)->s, (a), (b))
 
@@ -613,7 +617,7 @@ void ma_setfree(ma_xdealloc routine);
  * ma_reverse() - reverse an array
  * @ma: typed pointer to the mutable array
  *
- * Return: When successful 1, or otherwise 0 if realloc() failed.
+ * Return: When successful 1, otherwise 0 if realloc() failed.
  */
 
 #define ma_reverse(ma) (ma_reverse)(&(ma)->s)
@@ -624,7 +628,7 @@ void ma_setfree(ma_xdealloc routine);
  * @ret: pointer receiving a pointer to the new string
  * @sep: pointer to the null-terminated seperator
  *
- * Return: When successful length of @ret, or otherwise -1 with *@ret NULL if
+ * Return: When successful length of @ret, otherwise -1 with *@ret NULL if
  *	realloc() failed. You have to free() *@ret, when you no longer
  *	need it.
  */
