@@ -1,277 +1,218 @@
-mutarr.c
-========
+ary.c
+=====
 A type-safe and generic C99-compliant dynamic array.
 
 ## Example
 
 ```c
-    struct mutarr(double) numbers;
+    struct ary_double numbers = ARY_INIT(7.0);
     double ret;
 
-    ma_init(&numbers, 0);
-    ma_push(&numbers, 1.0);
-    ma_push(&numbers, 2.0);
-    ma_push(&numbers, 3.0);
-    if (ma_pop(&numbers, &ret))
-        printf("%g\n", ret);
-    ma_release(&numbers);
+    ary_push(&numbers, 1.0);
+    ary_insert(&numbers, 1, 2.0);
+    ary_emplace(&numbers, numbers.len);
+    ary_pop(&numbers, &ret);
+    printf("%g\n", ret);
+    ary_release(&numbers);
 ```
 
 ## Installation
 
-Use the makefile to compile a static/shared library or simply drop [mutarr.c](mutarr.c) and [mutarr.h](mutarr.h) into your project.
+Invoke `make` to compile a static library or simply drop [ary.c](ary.c) and [ary.h](ary.h) into your project.
 
 ## Usage
 
-See [mutarr.h](mutarr.h) for more details.
+See [ary.h](ary.h) for more details.
+
+  * It's __not__ safe to pass parameters that have side effects like `i++` or whatever, because often parameters are evaluated more than once (exceptions: see `ary_push()`, `ary_unshift()` and `ary_insert()`).
+  * If a function receives an index that exceeds the maximum possible position, it's truncated.
 
 #### Creating
 
-A mutable array can be of any type and is created like this:
+The array can be of any type and is created like this:
 
 ```c
-    struct mutarr(int) myints;
-    struct mutarr(char *) mycharptrs;
-    struct mutarr myvoidptrs; /* see below */
-    struct mutarr(struct xyz) mystructs;
+    struct ary(short) myshorts;
+    struct ary_int myints;
+    struct ary(int *) myintptrs;
+    struct ary_charptr mycharptrs;
+    struct ary myvoidptrs;
+    struct ary(struct xyz) mystructs;
 ```
 
-Before you can use or access it, it has to be initialized:
+If you want to pass an array between functions, you have to pre-declare its type:
 
 ```c
-    ma_init(&myarray, 0); /* initial space for 0 elements */
-```
+    struct ary_Pos ary(struct Pos);
 
-After you're finished, release it:
-
-```c
-    ma_release(&myarray);
-```
-
-This deletes all of its elements and reinitializes the array.
-
-To retrieve the number of elements an array contains:
-
-```c
-    size_t length = myarray.len;
-```
-
-###### Note
-
-In general, it __isn't__ safe to supply parameters with side effects (exceptions: see `ma_push`, `ma_unshift` and `ma_insert`).
-
-Also, if you want to pass a mutable array between functions, you have to pre-declare its type:
-
-```c
-    struct int_mutarr mutarr(int);
-
-    void print_len(struct int_mutarr *ptr)
+    void print_len(struct ary_Pos *ptr)
     {
         printf("%zu\n", ptr->len);
     }
 
     int main()
     {
-        struct int_mutarr myints;
+        struct ary_Pos a = ARY_INIT((struct Pos){.x=0,.y=0});
 
-        ma_init(&myints, 0);
-        ma_push(&myints, 10);
-        print_len(&myints);
-        ma_release(&myints);
+        ary_push(&a, (struct Pos){.x=1,.y=1});
+        print_len(&a);
+        ary_release(&a);
         return 0;
     }
 ```
 
-`struct mutarr` is already declared as `struct mutarr(void *)`.
+These are already pre-declared:
+
+```c
+    struct ary ary(void *);
+    struct ary_int ary(int);
+    struct ary_long ary(long);
+    struct ary_vlong ary(long long);
+    struct ary_size_t ary(size_t);
+    struct ary_double ary(double);
+    struct ary_char ary(char);
+    struct ary_charptr ary(char *);
+```
+
+Before you can use or access an array, it has to be initialized:
+
+```c
+    ary_init(&a, x); /* already allocate memory for x elements to reduce further reallocations */
+```
+
+Or directly when defining it:
+
+```c
+    struct ary_size_t a = ARY_INIT((size_t)0); /* new elements get set to 0 (must be of the exact same type!) */
+```
+
+After you're finished, release it:
+
+```c
+    ary_release(&a);
+```
+
+This removes all of its elements, releases the allocated memory and reinitializes the array.
+
+#### `typedef` Syntax
+
+Instead of the way from above:
+
+```c
+    struct ary_Pos ary(struct Pos);
+    
+    struct ary(struct Pos) mypositions1;
+    struct ary_Pos mypositions2;
+```
+
+you can also declare arrays like this:
+
+```c
+    typedef Array(struct Pos) Array_Pos;
+    
+    Array(struct Pos) mypositions1;
+    Array_Pos mypositions2;
+```
+
+To disable this syntax, use `#define ARY_STRUCT_ONLY` or `-DARY_STRUCT_ONLY`.
 
 #### Callbacks
 
-You can configure optional callbacks for each mutable array that are called to serve specific purposes. For their prototypes see [mutarr.h](mutarr.h).
+You can set optional constructors, destructors and user-pointers that get passed along. The constructor is called for new elements that get added via `ary_setlen()` or `ary_emplace()`. If it's _NULL_, those elements are initialized with the array's _init-value_ (which is still uninitialized when using `ary_init()` for initializing the array). The destructor is used for elements that are to be removed via `ary_setlen()`, `ary_pop()`, `ary_shift()`, `ary_clear()`. For their prototypes see [ary.h](ary.h).
 
-  * `ma_setctor(array, callback)`
-  * `ma_setdtor(array, callback)`
-  * `ma_setuserp(array, ptr)`
+  * `ary_setcbs(array, ctor, dtor)`
+  * `ary_setuserp(array, ptr)`
+  * `ary_setinitval(array, value)`
 
 ```c
-    void init_whatever(void *buf, void *userp)
+    void init_bla(void *buf, void *userp)
     {
-        struct whatever *s = buf;
+        struct bla *s = buf;
 
-        s->ptr = malloc(10);
+        (void)userp; /* user-pointer is neither used nor set */
+        s->xyz = malloc(10);
     }
 
-    void free_whatever(void *buf, void *userp)
+    void free_bla(void *buf, void *userp)
     {
-        struct whatever *s = buf;
+        struct bla *s = buf;
 
-        free(s->ptr);
+        (void)userp;
+        free(s->xyz);
     }
 
-    struct mutarr(struct whatever) mystuff;
+    struct ary(struct bla) a;
 
-    ma_init(&mystuff, 1); /* reserve space for one element */
-    ma_setctor(&mystuff, init_whatever);
-    ma_setdtor(&mystuff, free_whatever);
-    ma_setlen(&mystuff, 1); /* actually add one element */
-    ma_release(&mystuff);
+    ary_init(&a, 1); /* reserve space for one element */
+    ary_setcbs(&a, init_whatever, free_whatever);
+    ary_setlen(&a, 1); /* actually add one element */
+    ary_release(&a);
 ```
 
-  * `ma_setdefval(array, value)`
-  * `ma_setcmp(array, callb)`
-  * `ma_settostr(array, callb)`
-  * `ma_setcbs(array, ctor, dtor, cmp, tostr)`
+  * `ary_index()`, `ary_rindex()`, `ary_sort()` and `ary_search()` expect a comparison-callback
+  * `ary_join()` expects a stringify-callback
 
-#### Related to the buffer size
+A couple of such callbacks are already defined like `ary_cb_freevoidptr()`, `ary_cb_freecharptr()`, `ary_cb_cmpint()`, `ary_cb_strcmp()`, `ary_cb_voidptrtostr()`, `ary_cb_inttostr()`, ... (see [ary.c](ary.c)).
 
-  * `ma_attach(array, buffer, len, alloc)`
-  * `ma_detach(array, size)`
-  * `ma_grow(array, extra)`
-  * `ma_shrinktofit(array)`
-  * `ma_avail(array)`
-  * `ma_swap(array1, array2)`
-  * `ma_fullswap(array1, array2)`
+#### Related to the buffer
+
+  * `ary_attach(array, buffer, len, alloc)`
+  * `ary_detach(array, &size)`
+  * `ary_grow(array, extra)`
+  * `ary_shrinktofit(array)`
+  * `ary_avail(array)`
 
 #### Related to the contents
 
-To access the array buffer itself, use:
+To access the array's buffer, use:
 
 ```c
-    size_t i;
+    size_t length = myints.len;
 
-    for (i = 0; i < myints.len; i++) {
-        int x = myints.buf[i];
-
-        printf("myints.buf[%zu] = %d\n", i, x);
-    }
+    for (size_t i = 0; i < length; i++)
+        printf("myints.buf[%zu] = %d\n", i, myints.buf[i]);
 ```
 
-However, when calling an array function and specifying positions, negative offsets select elements from the end of the array.  
-Also, if an offset is beyond any bound it is truncated. Offsets are of type `int`, while lengths are of type `size_t`.
+  * `ary_setlen(array, length)`
+  * `ary_clear(array)`
 
-  * `ma_first(array)`
-  * `ma_last(array)`
+#### Basic functionality
 
-```c
-    int x = ma_first(&myints);
-    ma_last(&myints) = x;
-```
+  * `ary_push(array, value)`
+  * `ary_pop(array, &ret)`
+  * `ary_shift(array, &ret)`
+  * `ary_unshift(array, value)`
+  * `ary_splice(array, offset, rlen, data, dlen)`
+  * `ary_index(array, ret, start, data, comp)`
+  * `ary_rindex(array, ret, start, data, comp)`
+  * `ary_reverse(array)`
+  * `ary_sort(array, comp)`
+  * `ary_join(array, ret, sep, stringify)`
+  * `ary_slice(array, newarray, start, end)`
 
-However, when calling either one, it is assumed that the array contains at least one element.
+#### More
 
-  * `ma_setlen(array, length)`
-  * `ma_reset(array)`
-  * `ma_splice(array, offset, len, data, dlen)`
+  * `ary_clone(array, newarray)`
+  * `ary_insert(array, position, value)`
+  * `ary_remove(array, position)`
+  * `ary_emplace(array, position)`
+  * `ary_snatch(array, position, &ret)`
+  * `ary_swap(array, position1, position2)`
+  * `ary_search(array, ret, start, data, comp)`
 
-#### Inserting
+#### Adding new element slots
 
-  * `ma_insertp(array, offset)`
-  * `ma_insertmanyp(array, offset, n)`
-  * `ma_pushp(array)`
-  * `ma_insert(array, int offset, value)`
-  * `ma_push(array, value)`
-  * `ma_unshift(array, value)`
-
-```c
-    struct whatever stuff = {.x = y};
-
-    ma_insert(&mystuff, stuff);
-    ma_unshift(&mystuff, (struct whatever){.x = 10});
-    ma_push(&myptrs, strdup("bla"));
-```
-
-  * `ma_insertmany(array, offset, data, dlen)`
-  * `ma_pushmany(array, data, dlen)`
-  * `ma_unshiftmany(array, data, dlen)`
-  * `ma_spawn(array, offset)`
-  * `ma_copy(array, offset, data, dlen, callb)`
-
-#### Deleting
-
-  * `ma_delete(array, offset)`
-  * `ma_deletemany(array, offset, len)`
-  * `ma_pop(array, ret)`
-  * `ma_shift(array, ret)`
-  * `ma_extract(array, offset, ret)`
-
-```c
-    struct whatever stuff;
-
-    ma_pop(&mystuff, NULL);
-    ma_extract(&myptrs, 10, &ptr);
-    ma_shift(&myints, NULL);
-```
-
-## Searching and sorting
-
-  * `ma_index(array, start, data)`
-  * `ma_rindex(array, start, data)`
-  * `ma_insertsorted(array, data)`
-  * `ma_search(array, start, data)`
-  * `ma_sort(array)`
-
-```c
-    int cmpints(const void *a, const void *b)
-    {
-        const int *x = a;
-        const int *y = b;
-
-        return *x - *y;
-    }
-
-    struct mutarr(int) myints;
-
-    ma_init(&myints, 0);
-    ma_setcmp(&myints, cmpints);
-    ma_insertsorted(&myints, &(int){5});
-    ma_insertsorted(&myints, &(int){8});
-    ma_insertsorted(&myints, &(int){7});
-    ma_push(&myints, 2);
-    ma_sort(&myints);
-    printf("index: %d\n", ma_search(&myints, 0, &(int){8}));
-    ma_release(&myints);
-```
-
-#### Misc
-
-  * `ma_xchg(array, offset1, offset2)`
-  * `ma_reverse(array)`
-  * `ma_join(array, ret, sep)`
-  * `ma_tostr(array, ret)`
-
-```c
-    int doubletostr(char **ret, const void *elem)
-    {
-        const double *x = elem;
-
-        return asprintf(ret, "%g", *x;
-    }
-
-    struct mutarr(double) sevens;
-    char *str;
-
-    ma_init(&sevens, 0);
-    ma_setdefval(&sevens, 7.1);
-    ma_settostr(&sevens, doubletostr);
-    ma_grow(&sevens, 2);
-    ma_setlen(&sevens, 2);
-    sevens.buf[1] = 7.2;
-    ma_push(&sevens, 7.3);
-    ma_spawn(&sevens, sevens.len);
-    ma_xchg(&sevens, 0, 2);
-    ma_tostr(&sevens, &str);
-    printf("sevens: {%s}\n", str);
-    free(str);
-    ma_release(&sevens);
-```
+  * `ary_pushp(array)`
+  * `ary_unshiftp(array)`
+  * `ary_splicep(array, position, rlen, alen)`
+  * `ary_insertp(array, position)`
 
 #### Replacing malloc()
 
 ```c
-    tr_setrealloc(xrealloc); /* your `realloc` has to look like `calloc`, with 3 parameters */
-    tr_setfree(xfree);
+    ary_use_as_realloc(xrealloc); /* ary_* will use xrealloc(ptr, nmemb, size) */
+    ary_use_as_free(xfree); /* ary_* will use xfree(ptr) */
 ```
-
-This redirects further calls for any mutable array. Your `realloc()` replacement could e.g. just `exit(-1)` like GNU's `xmalloc()` if there is no memory left, so you spare checking every function that uses dynamic memory wether they succeeded, if you wouldn't react differently anyways.
 
 ## License
 
