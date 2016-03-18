@@ -161,8 +161,7 @@ void *(ary_detach)(struct aryb *ary, size_t *ret)
 	buf = ary->buf;
 	if (ret)
 		*ret = ary->len;
-	ary->alloc = 0;
-	ary->len = 0;
+	ary->alloc = ary->len = 0;
 	ary->buf = NULL;
 	return buf;
 }
@@ -214,7 +213,7 @@ void *(ary_splicep)(struct aryb *ary, size_t pos, size_t rlen, size_t alen)
 }
 
 int (ary_index)(struct aryb *ary, size_t *ret, size_t start, const void *data,
-                   ary_cmpcb_t comp)
+                ary_cmpcb_t comp)
 {
 	size_t i;
 	char *elem = (char *)ary->buf + (start * ary->sz);
@@ -230,7 +229,7 @@ int (ary_index)(struct aryb *ary, size_t *ret, size_t start, const void *data,
 }
 
 int (ary_rindex)(struct aryb *ary, size_t *ret, size_t start, const void *data,
-                    ary_cmpcb_t comp)
+                 ary_cmpcb_t comp)
 {
 	size_t i;
 	char *elem;
@@ -345,7 +344,7 @@ int (ary_swap)(struct aryb *ary, size_t a, size_t b)
 }
 
 int (ary_search)(struct aryb *ary, size_t *ret, size_t start, const void *data,
-                   ary_cmpcb_t comp)
+                 ary_cmpcb_t comp)
 {
 	size_t count = (start < ary->len) ? ary->len - start : 0;
 	char *elem = (char *)ary->buf + (start * ary->sz);

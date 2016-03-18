@@ -53,22 +53,6 @@ struct ary_double ary(double);
 struct ary_char ary(char);
 struct ary_charptr ary(char *);
 
-#ifndef ARY_STRUCT_ONLY
-
-/* alternative, shorter typedef-syntax */
-#define Array(type) struct ary(type)
-
-typedef Array(void *) Array;
-typedef Array(int) Array_int;
-typedef Array(long) Array_long;
-typedef Array(long long) Array_vlong;
-typedef Array(size_t) Array_size_t;
-typedef Array(double) Array_double;
-typedef Array(char) Array_char;
-typedef Array(char *) Array_charptr;
-
-#endif
-
 /* predefined callbacks */
 void ary_cb_freevoidptr(void *buf, void *userp);
 void ary_cb_freecharptr(void *buf, void *userp);
@@ -96,15 +80,15 @@ void *ary_detach(struct aryb *ary, size_t *ret);
 int ary_shrinktofit(struct aryb *ary);
 void *ary_splicep(struct aryb *ary, size_t pos, size_t rlen, size_t alen);
 int ary_index(struct aryb *ary, size_t *ret, size_t start, const void *data,
-                   ary_cmpcb_t comp);
+              ary_cmpcb_t comp);
 int ary_rindex(struct aryb *ary, size_t *ret, size_t start, const void *data,
-                   ary_cmpcb_t comp);
+               ary_cmpcb_t comp);
 int ary_reverse(struct aryb *ary);
 int ary_join(struct aryb *ary, char **ret, const char *sep,
              ary_joincb_t stringify);
 int ary_swap(struct aryb *ary, size_t a, size_t b);
 int ary_search(struct aryb *ary, size_t *ret, size_t start, const void *data,
-                   ary_cmpcb_t comp);
+               ary_cmpcb_t comp);
 
 extern ary_xalloc_t ary_xrealloc;
 
@@ -139,17 +123,6 @@ void ary_use_as_free(ary_xdealloc_t routine);
 	 ary_grow((ary), (hint)))
 
 /**
- * ARY_INIT() - initialize an array like `struct ary a = ARY_INIT(NULL);`
- * @...: value used to initialize new elements
- *
- * Note!: @... is like in ary_push() and its type _must_ match the one the array
- *	got declared with, so casting might be necessary. Also see ary_init().
- */
-#define ARY_INIT(...)                                         \
-	{{0, 0, sizeof(__VA_ARGS__), NULL, NULL, NULL, NULL}, \
-	 0, NULL, NULL, (__VA_ARGS__)}
-
-/**
  * ary_release() - release an array
  * @ary: typed pointer to the initialized array
  *
@@ -172,11 +145,12 @@ void ary_use_as_free(ary_xdealloc_t routine);
 	((ary)->s.ctor = (_ctor), (ary)->s.dtor = (_dtor), (void)0)
 
  /**
- * ary_setuserp() - set an array's user-pointer for its ctor/dtor
+ * ary_setuserp() - set an array's user-pointer for the ctor/dtor
  * @ary: typed pointer to the initialized array
  * @ptr: pointer that gets passed to the callbacks
  */
-#define ary_setuserp(ary, ptr) ((ary)->s.userp = (ptr), (void)0)
+#define ary_setuserp(ary, ptr) \
+	((ary)->s.userp = (ptr), (void)0)
 
 /**
  * ary_setinitval() - set an array's value used to initialize new elements
@@ -187,7 +161,8 @@ void ary_use_as_free(ary_xdealloc_t routine);
  *	when using ary_init(). However, it has to be specified when
  *	initializing an array with ARY_INIT().
  */
-#define ary_setinitval(ary, ...) ((ary)->val = (__VA_ARGS__), (void)0)
+#define ary_setinitval(ary, ...) \
+	((ary)->val = (__VA_ARGS__), (void)0)
 
 /**
  * ary_attach() - attach a buffer to an array
@@ -247,7 +222,8 @@ void ary_use_as_free(ary_xdealloc_t routine);
  *
  * Return: The number of elements that can be added without reallocation.
  */
-#define ary_avail(ary) ((ary)->s.alloc - (ary)->s.len)
+#define ary_avail(ary) \
+	((ary)->s.alloc - (ary)->s.len)
 
 /**
  * ary_setlen() - set an array's length
@@ -286,7 +262,8 @@ void ary_use_as_free(ary_xdealloc_t routine);
  * ary_clear() - empty an array
  * @ary: typed pointer to the initialized array
  */
-#define ary_clear(ary) ary_setlen((ary), 0)
+#define ary_clear(ary) \
+	ary_setlen((ary), 0)
 
 /**
  * ary_push() - add a new element to the end of an array
@@ -380,7 +357,8 @@ void ary_use_as_free(ary_xdealloc_t routine);
  * Return: When successful a pointer to the new element slot, otherwise NULL if
  *	ary_grow() failed.
  */
-#define ary_unshiftp(ary) ary_splicep((ary), 0, 0, 1)
+#define ary_unshiftp(ary) \
+	ary_splicep((ary), 0, 0, 1)
 
 /**
  * ary_splice() - add/remove elements from an array
@@ -393,8 +371,8 @@ void ary_use_as_free(ary_xdealloc_t routine);
  * Return: When successful 1, otherwise 0 if there were new elements to add but
  *	ary_grow() failed (the array remains unchanged in this case).
  */
-#define ary_splice(ary, pos, rlen, data, dlen)       \
-	(ary_splicep((ary), (pos), (rlen), (dlen)) ? \
+#define ary_splice(ary, pos, rlen, data, dlen)                      \
+	(ary_splicep((ary), (pos), (rlen), (dlen)) ?                \
 	 (memcpy((ary)->ptr, (data), (dlen) * (ary)->s.sz), 1) : 0)
 
 /**
@@ -451,7 +429,8 @@ void ary_use_as_free(ary_xdealloc_t routine);
  * Return: When successful 1, otherwise 0 if realloc() failed.
  */
 
-#define ary_reverse(ary) (ary_reverse)(&(ary)->s)
+#define ary_reverse(ary) \
+	(ary_reverse)(&(ary)->s)
 
  /**
  * ary_sort() - sort all elements in an array
@@ -503,7 +482,8 @@ void ary_use_as_free(ary_xdealloc_t routine);
  *
  * Return: When successful 1, otherwise 0 if ary_grow() failed.
  */
-#define ary_clone(ary, ret) ary_slice((ary), (ret), 0, (ary)->s.len)
+#define ary_clone(ary, ret) \
+	ary_slice((ary), (ret), 0, (ary)->s.len)
 
 /**
  * ary_insert() - add a new element to an array at a given position
@@ -515,8 +495,8 @@ void ary_use_as_free(ary_xdealloc_t routine);
  *
  * Note!: @... is like in ary_push().
  */
-#define ary_insert(ary, pos, ...) \
-	((ary_splicep((ary), (pos), 0, 1)) ? \
+#define ary_insert(ary, pos, ...)              \
+	((ary_splicep((ary), (pos), 0, 1)) ?   \
 	 (*(ary)->ptr = (__VA_ARGS__), 1) : 0)
 
 /**
@@ -527,7 +507,8 @@ void ary_use_as_free(ary_xdealloc_t routine);
  * Return: When successful a pointer to the new element slot, otherwise NULL if
  *	ary_grow() failed.
  */
-#define ary_insertp(ary, pos) ary_splicep((ary), (pos), 0, 1)
+#define ary_insertp(ary, pos) \
+	ary_splicep((ary), (pos), 0, 1)
 
 /**
  * ary_remove() - remove an element of an array
@@ -536,7 +517,8 @@ void ary_use_as_free(ary_xdealloc_t routine);
  *
  * Return: Pointer to the element following the deleted element.
  */
-#define ary_remove(ary, pos) ary_splicep((ary), (pos), 1, 0)
+#define ary_remove(ary, pos) \
+	ary_splicep((ary), (pos), 1, 0)
 
 /**
  * ary_emplace() - create a new element in an array
@@ -585,7 +567,8 @@ void ary_use_as_free(ary_xdealloc_t routine);
  *
  * Return: When successful 1, otherwise 0 if realloc() failed.
  */
-#define ary_swap(ary, a, b) (ary_swap)(&(ary)->s, (a), (b))
+#define ary_swap(ary, a, b) \
+	(ary_swap)(&(ary)->s, (a), (b))
 
 /**
  * ary_search() - search a sorted array for an element
@@ -600,7 +583,7 @@ void ary_use_as_free(ary_xdealloc_t routine);
  */
 #define ary_search(ary, ret, start, data, comp)                       \
 	((ary)->ptr = (data), (ary_search)(&(ary)->s, (ret), (start), \
-	                                  (ary)->ptr, (comp)))
+	                                   (ary)->ptr, (comp)))
 
 static inline int (ary_grow)(struct aryb *ary, size_t extra)
 {

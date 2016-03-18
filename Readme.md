@@ -5,15 +5,34 @@ A type-safe and generic C99-compliant dynamic array.
 ## Example
 
 ```c
-    struct ary_double numbers = ARY_INIT(7.0);
+    struct ary(double) a;
+    char *str;
     double ret;
 
-    ary_push(&numbers, 1.0);
-    ary_insert(&numbers, 1, 2.0);
-    ary_emplace(&numbers, numbers.len);
-    ary_pop(&numbers, &ret);
-    printf("%g\n", ret);
-    ary_release(&numbers);
+    ary_init(&a, 0);
+
+    ary_push(&a, 10.0);
+    ary_push(&a, 20.0);
+    ary_insert(&a, 1, 30.0);
+    ary_reverse(&a);
+
+    ary_join(&a, &str, ", ", ary_cb_doubletostr);
+    printf("unsorted: [%s]\n", str);
+    free(str);
+
+    ary_sort(&a, ary_cb_cmpdouble);
+
+    ary_join(&a, &str, ", ", ary_cb_doubletostr);
+    printf("sorted: [%s]\n", str);
+    free(str);
+
+    ary_shift(&a, &ret);
+    printf("a[0] was %g\n", ret);
+
+    printf("Now first and last are:\na[0] = %g\n", a.buf[0]);
+    printf("a[%zu] = %g\n", a.len - 1, a.buf[a.len - 1]);
+
+    ary_release(&a);
 ```
 
 ## Installation
@@ -22,25 +41,40 @@ Invoke `make` to compile a static library or simply drop [ary.c](ary.c) and [ary
 
 ## Usage
 
-See [ary.h](ary.h) for more details.
+Everything's documented in [ary.h](ary.h).
 
   * It's __not__ safe to pass parameters that have side effects like `i++` or whatever, because often parameters are evaluated more than once (exceptions: see `ary_push()`, `ary_unshift()` and `ary_insert()`).
-  * If a function receives an index that exceeds the maximum possible position, it's truncated.
+  * If a function receives an index that exceeds the maximum possible position, it is truncated.
 
 #### Creating
 
-The array can be of any type and is created like this:
+An array can be of any type and is created like this:
 
 ```c
-    struct ary(short) myshorts;
-    struct ary_int myints;
-    struct ary(int *) myintptrs;
-    struct ary_charptr mycharptrs;
-    struct ary myvoidptrs;
+    struct ary(void *) myvoidptrs;
+    struct ary(int) myints;
+    struct ary(char *) mycharptrs;
     struct ary(struct xyz) mystructs;
+    struct ary(struct ary(int)) myarys;
 ```
 
-If you want to pass an array between functions, you have to pre-declare its type:
+Before you can use or access an array, it has to be initialized:
+
+```c
+    ary_init(&a, x); /* already allocate memory for x elements to reduce further reallocations */
+```
+
+After you're finished, release it:
+
+```c
+    ary_release(&a);
+```
+
+This removes all of its elements, releases the allocated memory and reinitializes the array.
+
+#### Type declaration
+
+If you want to have an array in a function's parameter list, you have to declare its type to keep it std-compliant:
 
 ```c
     struct ary_Pos ary(struct Pos);
@@ -52,8 +86,9 @@ If you want to pass an array between functions, you have to pre-declare its type
 
     int main()
     {
-        struct ary_Pos a = ARY_INIT((struct Pos){.x=0,.y=0});
+        struct ary_Pos a;
 
+        ary_init(&a, 0);
         ary_push(&a, (struct Pos){.x=1,.y=1});
         print_len(&a);
         ary_release(&a);
@@ -61,7 +96,7 @@ If you want to pass an array between functions, you have to pre-declare its type
     }
 ```
 
-These are already pre-declared:
+These types are already declared:
 
 ```c
     struct ary ary(void *);
@@ -72,87 +107,12 @@ These are already pre-declared:
     struct ary_double ary(double);
     struct ary_char ary(char);
     struct ary_charptr ary(char *);
+
+    /* examples from above: */
+    struct ary myvoidptrs;
+    struct ary_int myints;
+    struct ary_charptr mycharptrs;
 ```
-
-Before you can use or access an array, it has to be initialized:
-
-```c
-    ary_init(&a, x); /* already allocate memory for x elements to reduce further reallocations */
-```
-
-Or directly when defining it:
-
-```c
-    struct ary_size_t a = ARY_INIT((size_t)0); /* new elements get set to 0 (must be of the exact same type!) */
-```
-
-After you're finished, release it:
-
-```c
-    ary_release(&a);
-```
-
-This removes all of its elements, releases the allocated memory and reinitializes the array.
-
-#### `typedef` Syntax
-
-Instead of the way from above:
-
-```c
-    struct ary_Pos ary(struct Pos);
-    
-    struct ary(struct Pos) mypositions1;
-    struct ary_Pos mypositions2;
-```
-
-you can also declare arrays like this:
-
-```c
-    typedef Array(struct Pos) Array_Pos;
-    
-    Array(struct Pos) mypositions1;
-    Array_Pos mypositions2;
-```
-
-To disable this syntax, use `#define ARY_STRUCT_ONLY` or `-DARY_STRUCT_ONLY`.
-
-#### Callbacks
-
-You can set optional constructors, destructors and user-pointers that get passed along. The constructor is called for new elements that get added via `ary_setlen()` or `ary_emplace()`. If it's _NULL_, those elements are initialized with the array's _init-value_ (which is still uninitialized when using `ary_init()` for initializing the array). The destructor is used for elements that are to be removed via `ary_setlen()`, `ary_pop()`, `ary_shift()`, `ary_clear()`. For their prototypes see [ary.h](ary.h).
-
-  * `ary_setcbs(array, ctor, dtor)`
-  * `ary_setuserp(array, ptr)`
-  * `ary_setinitval(array, value)`
-
-```c
-    void init_bla(void *buf, void *userp)
-    {
-        struct bla *s = buf;
-
-        (void)userp; /* user-pointer is neither used nor set */
-        s->xyz = malloc(10);
-    }
-
-    void free_bla(void *buf, void *userp)
-    {
-        struct bla *s = buf;
-
-        (void)userp;
-        free(s->xyz);
-    }
-
-    struct ary(struct bla) a;
-
-    ary_init(&a, 1); /* reserve space for one element */
-    ary_setcbs(&a, init_whatever, free_whatever);
-    ary_setlen(&a, 1); /* actually add one element */
-    ary_release(&a);
-```
-
-  * `ary_index()`, `ary_rindex()`, `ary_sort()` and `ary_search()` expect a comparison-callback
-  * `ary_join()` expects a stringify-callback
-
-A couple of such callbacks are already defined like `ary_cb_freevoidptr()`, `ary_cb_freecharptr()`, `ary_cb_cmpint()`, `ary_cb_strcmp()`, `ary_cb_voidptrtostr()`, `ary_cb_inttostr()`, ... (see [ary.c](ary.c)).
 
 #### Related to the buffer
 
@@ -167,10 +127,10 @@ A couple of such callbacks are already defined like `ary_cb_freevoidptr()`, `ary
 To access the array's buffer, use:
 
 ```c
-    size_t length = myints.len;
+    size_t length = a.len;
 
     for (size_t i = 0; i < length; i++)
-        printf("myints.buf[%zu] = %d\n", i, myints.buf[i]);
+        printf("a.buf[%zu] = %d\n", i, a.buf[i]);
 ```
 
   * `ary_setlen(array, length)`
@@ -192,11 +152,11 @@ To access the array's buffer, use:
 
 #### More
 
-  * `ary_clone(array, newarray)`
   * `ary_insert(array, position, value)`
   * `ary_remove(array, position)`
   * `ary_emplace(array, position)`
   * `ary_snatch(array, position, &ret)`
+  * `ary_clone(array, newarray)`
   * `ary_swap(array, position1, position2)`
   * `ary_search(array, ret, start, data, comp)`
 
@@ -206,6 +166,48 @@ To access the array's buffer, use:
   * `ary_unshiftp(array)`
   * `ary_splicep(array, position, rlen, alen)`
   * `ary_insertp(array, position)`
+
+#### Callbacks
+
+You can set an optional constructor and an optional destructor. The constructor is called for new elements that were added by `ary_setlen()` and `ary_emplace()`. The destructor is called for elements that are to be removed by `ary_setlen()`, `ary_pop()`, `ary_shift()` and `ary_clear()`. For their prototypes see [ary.h](ary.h).
+
+  * `ary_setcbs(array, ctor, dtor)`
+  * `ary_setuserp(array, ptr)`
+
+```c
+    void init_foo(void *buf, void *userp)
+    {
+        struct foo *s = buf;
+
+        (void)userp;
+        s->xyz = malloc(10);
+    }
+
+    void free_foo(void *buf, void *userp)
+    {
+        struct foo *s = buf;
+
+        (void)userp;
+        free(s->xyz);
+    }
+
+    struct ary(struct foo) a;
+
+    ary_init(&a, 0);
+    ary_setcbs(&a, init_whatever, free_whatever);
+    ary_grow(&a, 5);
+    ary_setlen(&a, 5);
+    ary_release(&a);
+```
+
+  * `ary_setinitval(array, value)`
+
+    If the constructor is _NULL_, new elements are initialized with the array's _init-value_ which should be set via `ary_setinitval()` or `ARY_INIT()` if needed, otherwise it's a possibly uninitialized value.
+
+  * `ary_index()`, `ary_rindex()`, `ary_sort()` and `ary_search()` expect a comparison-callback
+  * `ary_join()` expects a stringify-callback
+
+A couple of such callbacks are already defined like `ary_cb_freevoidptr()`, `ary_cb_freecharptr()`, `ary_cb_cmpint()`, `ary_cb_strcmp()`, `ary_cb_voidptrtostr()`, `ary_cb_longtostr()`, ... (see [ary.c](ary.c)).
 
 #### Replacing malloc()
 
