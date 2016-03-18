@@ -202,7 +202,7 @@ You can set an optional constructor and an optional destructor. The constructor 
 
   * `ary_setinitval(array, value)`
 
-    If the constructor is _NULL_, new elements are initialized with the array's _init-value_ which should be set via `ary_setinitval()` or `ARY_INIT()` if needed, otherwise it's a possibly uninitialized value.
+    If the constructor is _NULL_, new elements are initialized with the array's _init-value_ which should be set via `ary_setinitval()` if needed, otherwise it's a possibly uninitialized value.
 
   * `ary_index()`, `ary_rindex()`, `ary_sort()` and `ary_search()` expect a comparison-callback
   * `ary_join()` expects a stringify-callback
