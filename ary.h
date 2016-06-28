@@ -89,6 +89,7 @@ int ary_join(struct aryb *ary, char **ret, const char *sep,
 int ary_swap(struct aryb *ary, size_t a, size_t b);
 int ary_search(struct aryb *ary, size_t *ret, size_t start, const void *data,
                ary_cmpcb_t comp);
+int ary_unique(struct aryb *ary, ary_cmpcb_t comp);
 
 extern ary_xalloc_t ary_xrealloc;
 
@@ -187,6 +188,8 @@ void ary_use_as_free(ary_xdealloc_t routine);
  * @ary: typed pointer to the initialized array
  * @size: pointer that receives @ary's length, can be NULL
  *
+ * A directly following ary_release() is not needed.
+ *
  * Return: The array buffer of @ary. If @ary's has no allocated memory, NULL is
  *	returned. You have to free() the buffer, when you no longer need it.
  */
@@ -279,8 +282,8 @@ void ary_use_as_free(ary_xdealloc_t routine);
 #define ary_push(ary, ...)                                                   \
 	(((ary)->s.len == (ary)->s.alloc) ?                                  \
 	 ary_grow((ary), 1) ?                                                \
-	 ((ary)->buf[(ary)->s.len++] = (__VA_ARGS__), (ary)->len++, 1) : 0 : \
-	 ((ary)->buf[(ary)->s.len++] = (__VA_ARGS__), (ary)->len++, 1))
+	 ((ary)->buf[(ary)->len++, (ary)->s.len++] = (__VA_ARGS__), 1) : 0 : \
+	 ((ary)->buf[(ary)->len++, (ary)->s.len++] = (__VA_ARGS__), 1))
 
 /**
  * ary_pushp() - add a new element slot to the end of an array (pointer)
@@ -289,10 +292,11 @@ void ary_use_as_free(ary_xdealloc_t routine);
  * Return: When successful a pointer to the new element slot, otherwise NULL if
  *	ary_grow() failed.
  */
-#define ary_pushp(ary)                                                    \
-	(((ary)->s.len == (ary)->s.alloc) ?                               \
-	 ary_grow((ary), 1) ? &(ary)->buf[(ary)->s.len++, (ary)->len++] : \
-	 NULL : &(ary)->buf[(ary)->s.len++, (ary)->len++])
+#define ary_pushp(ary)                                      \
+	(((ary)->s.len == (ary)->s.alloc) ?                 \
+	 ary_grow((ary), 1) ?                               \
+	 &(ary)->buf[(ary)->len++, (ary)->s.len++] : NULL : \
+	 &(ary)->buf[(ary)->len++, (ary)->s.len++])
 
 /**
  * ary_pop() - remove the last element of an array
@@ -303,16 +307,15 @@ void ary_use_as_free(ary_xdealloc_t routine);
  *
  * Return: When successful 1, otherwise 0 if there were no elements to pop.
  */
-#define ary_pop(ary, ret)                                            \
-	((ary)->s.len ?                                              \
-	 ((void *)(ret) != NULL) ?                                   \
-	 (*(((void *)(ret) != NULL) ?                                \
-	  (ret) : &(ary)->val) = (ary)->buf[--(ary)->s.len],         \
-	  (ary)->len--, 1) :                                         \
-	 (ary)->s.dtor ? ((ary)->s.dtor(&(ary)->buf[--(ary)->s.len], \
-	                                (ary)->s.userp),             \
-	                  (ary)->len--, 1) :                         \
-	                 ((ary)->s.len--, (ary)->len--, 1) : 0)
+#define ary_pop(ary, ret)                                             \
+	((ary)->s.len ?                                               \
+	 ((void *)(ret) != NULL) ?                                    \
+	 (*(((void *)(ret) != NULL) ? (ret) : &(ary)->val) =          \
+	  (ary)->buf[--(ary)->s.len], (ary)->len--, 1) :              \
+	 (ary)->s.dtor ?                                              \
+	 ((ary)->s.dtor(&(ary)->buf[--(ary)->s.len], (ary)->s.userp), \
+	  (ary)->len--, 1) :                                          \
+	 ((ary)->s.len--, (ary)->len--, 1) : 0)
 
 /**
  * ary_shift() - remove the first element of an array
@@ -328,15 +331,13 @@ void ary_use_as_free(ary_xdealloc_t routine);
 	 ((void *)(ret) != NULL) ?                                          \
 	 (*(((void *)(ret) != NULL) ? (ret) : &(ary)->val) = (ary)->buf[0], \
 	  memmove(&(ary)->buf[0], &(ary)->buf[1],                           \
-	          --(ary)->s.len * (ary)->s.sz),                            \
-	  (ary)->len--, 1) :                                                \
-	 (ary)->s.dtor ? ((ary)->s.dtor(&(ary)->buf[0], (ary)->s.userp),    \
-	                 memmove(&(ary)->buf[0], &(ary)->buf[1],            \
-	                         --(ary)->s.len * (ary)->s.sz),             \
-	                 (ary)->len--, 1) :                                 \
-	                (memmove(&(ary)->buf[0], &(ary)->buf[1],            \
-	                         --(ary)->s.len * (ary)->s.sz),             \
-	                 (ary)->len--, 1) : 0)
+	          --(ary)->s.len * (ary)->s.sz), (ary)->len--, 1) :         \
+	 (ary)->s.dtor ?                                                    \
+	 ((ary)->s.dtor(&(ary)->buf[0], (ary)->s.userp),                    \
+	  memmove(&(ary)->buf[0], &(ary)->buf[1],                           \
+	          --(ary)->s.len * (ary)->s.sz), (ary)->len--, 1) :         \
+	 (memmove(&(ary)->buf[0], &(ary)->buf[1],                           \
+	          --(ary)->s.len * (ary)->s.sz), (ary)->len--, 1) : 0)
 
 /**
  * ary_unshift() - add a new element to the beginning of an array
@@ -371,9 +372,10 @@ void ary_use_as_free(ary_xdealloc_t routine);
  * Return: When successful 1, otherwise 0 if there were new elements to add but
  *	ary_grow() failed (the array remains unchanged in this case).
  */
-#define ary_splice(ary, pos, rlen, data, dlen)                      \
-	(ary_splicep((ary), (pos), (rlen), (dlen)) ?                \
-	 (memcpy((ary)->ptr, (data), (dlen) * (ary)->s.sz), 1) : 0)
+#define ary_splice(ary, pos, rlen, data, dlen)                        \
+	(ary_splicep((ary), (pos), (rlen), (dlen)) ?                  \
+	 (memcpy((ary)->ptr, (data) ? (void *)(data) : (void *)(ary), \
+	         (data) ? (dlen) * (ary)->s.sz : 0), 1) : 0)
 
 /**
  * ary_splicep() - add element slots/remove elements from an array
@@ -584,6 +586,16 @@ void ary_use_as_free(ary_xdealloc_t routine);
 #define ary_search(ary, ret, start, data, comp)                       \
 	((ary)->ptr = (data), (ary_search)(&(ary)->s, (ret), (start), \
 	                                   (ary)->ptr, (comp)))
+
+/**
+ * ary_unique() - remove duplicates in an array
+ * @ary: typed pointer to the array
+ * @comp: comparison function
+ *
+ * Return: When successful 1, otherwise 0 if realloc() failed.
+ */
+#define ary_unique(ary, comp) \
+	((ary_unique)(&(ary)->s, (comp)) ? ((ary)->len = (ary)->s.len, 1) : 0)
 
 static inline int (ary_grow)(struct aryb *ary, size_t extra)
 {

@@ -7,32 +7,50 @@ A type-safe and generic C99-compliant dynamic array.
 ```c
     struct ary(double) a;
     char *str;
-    double ret;
+    double ret, tmp;
+    size_t pos;
 
     ary_init(&a, 0);
 
-    ary_push(&a, 10.0);
-    ary_push(&a, 20.0);
-    ary_insert(&a, 1, 30.0);
+    ary_push(&a, 10.1);
+    ary_push(&a, 20.2);
+    ary_push(&a, 10.1);
+    ary_splice(&a, 3, 0, ((double[]){10.1, 20.2}), 2);
+    ary_insert(&a, 1, 30.3);
+
+    ary_join(&a, &str, ", ", ary_cb_doubletostr);
+    printf("original: [%s]\n", str);
+    free(str);
+
+    ary_unique(&a, ary_cb_cmpdouble);
+    ary_sort(&a, ary_cb_cmpdouble);
     ary_reverse(&a);
 
     ary_join(&a, &str, ", ", ary_cb_doubletostr);
-    printf("unsorted: [%s]\n", str);
-    free(str);
-
-    ary_sort(&a, ary_cb_cmpdouble);
-
-    ary_join(&a, &str, ", ", ary_cb_doubletostr);
-    printf("sorted: [%s]\n", str);
+    printf("sorted & reversed uniques: [%s]\n", str);
     free(str);
 
     ary_shift(&a, &ret);
-    printf("a[0] was %g\n", ret);
+    ary_unshift(&a, ret + 0.3);
 
-    printf("Now first and last are:\na[0] = %g\n", a.buf[0]);
-    printf("a[%zu] = %g\n", a.len - 1, a.buf[a.len - 1]);
+    a.buf[1] += 0.2;
+
+    ary_join(&a, &str, ", ", ary_cb_doubletostr);
+    printf("altered: [%s]\n", str);
+    free(str);
+
+    tmp = 10.1;
+    ary_index(&a, &pos, 0, &tmp, NULL);
+    printf("%g found @ a[%zu]\n", tmp, pos);
 
     ary_release(&a);
+
+    /* output:
+     *   original: [10.1, 30.3, 20.2, 10.1, 10.1, 20.2]
+     *   sorted & reversed uniques: [30.3, 20.2, 10.1]
+     *   altered: [30.6, 20.4, 10.1]
+     *   10.1 found @ a[2]
+     */
 ```
 
 ## Installation
@@ -43,8 +61,9 @@ Invoke `make` to compile a static library or simply drop [ary.c](ary.c) and [ary
 
 Everything's documented in [ary.h](ary.h).
 
-  * It's __not__ safe to pass parameters that have side effects like `i++` or whatever, because often parameters are evaluated more than once (exceptions: see `ary_push()`, `ary_unshift()` and `ary_insert()`).
+  * It's __not__ safe to pass parameters that have side effects like `i++`, `strcat(ptr, "...")` or whatever, because often parameters are evaluated more than once (exceptions: see `ary_push()`, `ary_unshift()` and `ary_insert()`).
   * If a function receives an index that exceeds the maximum possible position, it is truncated.
+  * All length, positions and indices are `size_t`s.
 
 #### Creating
 
@@ -157,6 +176,7 @@ To access the array's buffer, use:
   * `ary_emplace(array, position)`
   * `ary_snatch(array, position, &ret)`
   * `ary_clone(array, newarray)`
+  * `ary_unique(array, comp)`
   * `ary_swap(array, position1, position2)`
   * `ary_search(array, ret, start, data, comp)`
 
@@ -212,7 +232,7 @@ A couple of such callbacks are already defined like `ary_cb_freevoidptr()`, `ary
 #### Replacing malloc()
 
 ```c
-    ary_use_as_realloc(xrealloc); /* ary_* will use xrealloc(ptr, nmemb, size) */
+    ary_use_as_realloc(xreallocarray); /* ary_* will use xreallocarray(ptr, nmemb, size) */
     ary_use_as_free(xfree); /* ary_* will use xfree(ptr) */
 ```
 

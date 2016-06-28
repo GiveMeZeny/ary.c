@@ -240,7 +240,7 @@ int (ary_rindex)(struct aryb *ary, size_t *ret, size_t start, const void *data,
 	for (i = start; i--; elem -= ary->sz) {
 		if (comp ? !comp(elem, data) : !memcmp(elem, data, ary->sz)) {
 			if (ret)
-				*ret = i;
+				*ret = i + 1;
 			return 1;
 		}
 	}
@@ -354,5 +354,51 @@ int (ary_search)(struct aryb *ary, size_t *ret, size_t start, const void *data,
 		return 0;
 	if (ret)
 		*ret = (size_t)((uintptr_t)ptr - (uintptr_t)ary->buf);
+	return 1;
+}
+
+int (ary_unique)(struct aryb *ary, ary_cmpcb_t comp)
+{
+	void *list, *end;
+	size_t num, i;
+	char *elem;
+
+	num = ary->len;
+	list = ary_xrealloc(NULL, num, ary->sz);
+	if (!list)
+		return 0;
+	end = (char *)list + num * ary->sz;
+	memcpy(list, ary->buf, num * ary->sz);
+	qsort(list, num, ary->sz, comp);
+	for (i = 0, elem = list; i < num - 1;) {
+		char *next = elem + ary->sz;
+
+		if (!comp(elem, next)) {
+			memmove(next, next + ary->sz, (num - i - 2) * ary->sz);
+			num--;
+		} else {
+			elem = next;
+			i++;
+		}
+	}
+	for (i = 0, elem = ary->buf; i < ary->len;) {
+		void *ptr = bsearch(elem, list, num, ary->sz, comp);
+		size_t rest;
+
+		if (!ptr) {
+			if (ary->dtor)
+				ary->dtor(elem, ary->userp);
+			ptr = elem;
+			rest = (--ary->len - i) * ary->sz;
+		} else {
+			elem += ary->sz;
+			num--;
+			i++;
+			rest = (size_t)((uintptr_t)end - (uintptr_t)ptr) -
+			       ary->sz;
+		}
+		memmove(ptr, (char *)ptr + ary->sz, rest);
+	}
+	free(list);
 	return 1;
 }
